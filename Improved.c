@@ -1,9 +1,16 @@
-include "stdlib"
+#include "stdlib.h"
+#include "stdio.h"
+#include "string.h"
 int inipos=0;
 int inilen=0;
 char *str="[section]";
+void parse_section(char* string);
 int main(){
+    char string[30];
     inilen=strlen(str);
+    parse_section(string);
+    printf("%s",string);
+    return 0;
 }
 int match_lb()
 {
@@ -13,30 +20,33 @@ int match_rb()
 {
     return str[inipos]==']'&&inipos++;
 }
-int extract_str(char* string)
+int is_legal_key_char(char c);
+char see_next();
+int extract_str(char* dest)
 {
     char c=str[inipos];
     int pos=0;
     is_legal_key_char(c);
-    string[pos]=c;
+    dest[pos]=c;
     pos++;
     c=see_next();
-    while(is_legal_key_char(c)))
+    while(is_legal_key_char(c))
     {
-        string[pos]=c
+        dest[pos]=c;
         pos++;
         inipos++;
         c=see_next();
     }
-    string[pos]=0;
+    dest[pos]=0;
+    str[inipos]=0;
 }
-char* see_next()
+char see_next()
 {
-    return str+inipos+1;
+    return *(str+inipos+1);
 }
-void parse()
+void parse_section(char* string)
 {
-    char string[30];
+
     match_lb();  
     extract_str(string);
     match_rb();
@@ -45,7 +55,7 @@ void parse()
 int is_legal_key_char(char c)
 {
     if(c!='\n'&&c!='\r'&&c!='=')
-        return true;
+        return 1;
     else 
-        return false;
+        return 0;
 }
