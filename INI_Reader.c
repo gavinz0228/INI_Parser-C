@@ -4,9 +4,9 @@
 unsigned int ini_pos = 0;
 unsigned int ini_len = 0;
 int ini_eof = 0;
-static char line_buffer[50];
-static int line_buffer_pos=0;
-int ini_read_line(char* ini, char* line_buf)
+char line_buffer[50];
+int line_buffer_pos = 0;
+int ini_read_line(char* ini)
 {
 	int  line_len = 0;
 	char* line_start;
@@ -37,8 +37,8 @@ int ini_read_line(char* ini, char* line_buf)
 		line_buffer_pos = 0;
 	}
 
-	strncpy(line_buf, line_start, line_len);
-	line_buf[line_len] = 0;
+	strncpy(line_buffer, line_start, line_len);
+	line_buffer[line_len] = 0;
 	return 1;
 }
 INI_Section parse_ini(char* ini, int page)
@@ -48,7 +48,11 @@ INI_Section parse_ini(char* ini, int page)
 	ini_len = strlen(ini);
 
 }
-
+int skip_space()
+{
+	while (line_buffer[line_buffer_pos] == ' ')
+		line_buffer_pos++;
+}
 int is_kv_line(char * line)
 {
 	return strchr(line, '=') != NULL;
@@ -57,7 +61,6 @@ int is_section_line(char* line)
 {
 	return strchr(line, '[') != NULL;
 }
-
 int match_lb()
 {
 	return line_buffer[line_buffer_pos] == '['&&line_buffer_pos++;
@@ -72,7 +75,7 @@ int match_eq()
 }
 int is_legal_key_char(char c);
 char see_next();
-int extract_str(char* dest)
+int extract_key(char* dest)
 {
 	char c = line_buffer[line_buffer_pos];
 	int pos = 0;
@@ -90,6 +93,24 @@ int extract_str(char* dest)
 	dest[pos] = 0;
 	line_buffer_pos++;
 }
+int extract_string(char* dest)
+{
+	char c = line_buffer[line_buffer_pos];
+	int pos = 0;
+	is_legal_char(c);
+	dest[pos] = c;
+	pos++;
+	c = see_next();
+	while (is_legal_char(c))
+	{
+		dest[pos] = c;
+		pos++;
+		line_buffer_pos++;
+		c = see_next();
+	}
+	dest[pos] = 0;
+	line_buffer_pos++;
+}
 char see_next()
 {
 	return *(line_buffer + line_buffer_pos + 1);
@@ -98,79 +119,83 @@ void parse_section(char* string)
 {
 
 	match_lb();
-	extract_str(string);
+	extract_key(string);
 	match_rb();
 	printf(" %s ", string);
 
 }
 void parse_kv(char *key, char* value)
 {
-	extract_str(key);
+	extract_key(key);
 	match_eq();
-	extract_str(value);
+	extract_string(value);
 }
 int is_legal_key_char(char c)
 {
-	if (c != '\n'&&c != '\r'&&c != '='&&c != ']')
+	if ((c>96&&c<123)||(c>64&&c<91)||(c>47&&c<58)||c==95) 
+		return 1;
+	else
+		return 0;
+}
+int is_legal_char(char c)
+{
+	if (c != '\n'&&c != '\r'&&c != 0)
 		return 1;
 	else
 		return 0;
 }
 
-INI_Section * get_ini_section_by_name(INI_Section** sections, int section_num, char* section_name)
+INI_Section * get_ini_section_by_name(INI_File * ini, char* section_name)
 {
 	int i;
-	for (i = 0; i < section_num; i++)
+	for (i = 0; i <ini->size; i++)
 	{
-		if (strcmp(sections[i]->name, section_name) == 0)
+		if (strcmp(ini->sections[i]->name, section_name) == 0)
 		{
-			return sections[i];
+			return ini->sections[i];
 		}
 	}
 	return NULL;
 }
-int ini_load(char* ini, INI_Section ** sections, int *section_num)
+int ini_load(char* ini_str, INI_File *ini )
 {
 	ini_pos = 0;
 	ini_eof = 0;
 	INI_KeyValue *kv;
 	int kv_size = 0;
-	ini_len = strlen(ini);
-	*sections = ini_malloc(sizeof(void*)*MAX_SECTION_SIZE);
+	ini_len = strlen(ini_str);
 	int sec_num = 0;
-	while (ini_read_line(ini, line_buffer))
+	while (ini_read_line(ini_str))
 	{
 		if (is_section_line(line_buffer))
 		{
-			sections[sec_num] = ini_malloc(sizeof(INI_Section));
-			parse_section(sections[sec_num]->name);
-			sections[sec_num]->kv_size = 0;
+			ini->sections[sec_num] = ini_malloc(sizeof(INI_Section));
+			parse_section(ini->sections[sec_num]->name);
+			ini->sections[sec_num]->kv_size = 0;
 			sec_num++;
-
 		}
 		else if (is_kv_line(line_buffer))
 		{
 			kv = ini_malloc(sizeof(INI_KeyValue));
-			parse_kv(kv->key,kv->val_str);
-			sections[sec_num - 1]->kv[sections[sec_num - 1]->kv_size] = kv;
-			sections[sec_num - 1]->kv_size++;
+			parse_kv(kv->key, kv->value);
+			ini->sections[sec_num - 1]->kv[ini->sections[sec_num - 1]->kv_size] = kv;
+			ini->sections[sec_num - 1]->kv_size++;
 		}
 
 	}
-	*section_num = sec_num;
+	ini->size = sec_num;
 	return 1;
 }
-int ini_unload(INI_Section ** sections, int section_num)
+int ini_unload(INI_File * ini)
 {
 	int i;
 	int j;
-	for (i = 0; i < section_num; i++)
+	for (i = 0; i < ini->size; i++)
 	{
-		for (j = 0; j < sections[i]->kv_size; j++)
+		for (j = 0; j < ini->sections[i]->kv_size; j++)
 		{
-			ini_free(sections[i]->kv[j]);
-		}
-		ini_free(sections[i]);
+			ini_free(ini->sections[i]->kv[j]);
+		} 
+		ini_free(ini->sections[i]);
 	}
-	ini_free(*sections);
 }
